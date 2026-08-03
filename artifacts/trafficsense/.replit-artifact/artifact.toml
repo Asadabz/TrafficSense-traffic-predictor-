@@ -1,0 +1,27 @@
+kind = "web"
+previewPath = "/"
+title = "TrafficSense"
+version = "1.0.0"
+id = "artifacts/trafficsense"
+router = "path"
+
+[[services]]
+name = "web"
+paths = [ "/" ]
+localPort = 21762
+
+[services.development]
+run = "pnpm --filter @workspace/trafficsense run dev"
+
+[services.production]
+build = [ "pnpm", "--filter", "@workspace/trafficsense", "run", "build" ]
+serve = "static"
+publicDir = "artifacts/trafficsense/dist/public"
+
+[[services.production.rewrites]]
+from = "/*"
+to = "/index.html"
+
+[services.env]
+PORT = "21762"
+BASE_PATH = "/"

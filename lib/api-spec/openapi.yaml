@@ -1,0 +1,327 @@
+openapi: 3.1.0
+info:
+  # Do not change the title, if the title changes, the import paths will be broken
+  title: Api
+  version: 0.1.0
+  description: TrafficSense API — ML-powered traffic prediction
+servers:
+  - url: /api
+    description: Base API path
+tags:
+  - name: health
+    description: Health operations
+  - name: traffic
+    description: Traffic prediction and historical data
+paths:
+  /healthz:
+    get:
+      operationId: healthCheck
+      tags: [health]
+      summary: Health check
+      description: Returns server health status
+      responses:
+        "200":
+          description: Healthy
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/HealthStatus"
+
+  /predict:
+    post:
+      operationId: predictTraffic
+      tags: [traffic]
+      summary: Predict traffic congestion for a route
+      description: >
+        Given an origin, destination, and datetime, returns predicted congestion level,
+        estimated travel time, 24-hour hourly forecast, and a confidence score.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/PredictInput"
+      responses:
+        "200":
+          description: Prediction result
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/PredictionResult"
+        "400":
+          description: Invalid input
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "503":
+          description: ML backend unavailable
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+
+  /historical:
+    get:
+      operationId: getHistoricalData
+      tags: [traffic]
+      summary: Get historical traffic patterns for a location
+      description: Returns 7-day historical traffic data broken down by hour and day of week
+      parameters:
+        - name: location
+          in: query
+          required: true
+          schema:
+            type: string
+          description: Location or road name
+      responses:
+        "200":
+          description: Historical traffic patterns
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/HistoricalData"
+        "400":
+          description: Invalid query
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+
+  /summary:
+    get:
+      operationId: getTrafficSummary
+      tags: [traffic]
+      summary: Get current traffic summary stats
+      description: Returns high-level traffic status metrics for a dashboard overview
+      responses:
+        "200":
+          description: Traffic summary
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/TrafficSummary"
+
+components:
+  schemas:
+    HealthStatus:
+      type: object
+      properties:
+        status:
+          type: string
+      required:
+        - status
+
+    ErrorResponse:
+      type: object
+      properties:
+        error:
+          type: string
+      required:
+        - error
+
+    PredictInput:
+      type: object
+      required:
+        - origin
+        - destination
+        - datetime
+      properties:
+        origin:
+          type: string
+          description: Starting location
+          example: "Times Square, New York"
+        destination:
+          type: string
+          description: Destination location
+          example: "Brooklyn Bridge, New York"
+        datetime:
+          type: string
+          format: date-time
+          description: Target date and time for the prediction (ISO 8601)
+
+    HourlyForecast:
+      type: object
+      required:
+        - hour
+        - congestion_index
+        - label
+      properties:
+        hour:
+          type: integer
+          description: Hour of the day (0–23)
+        congestion_index:
+          type: number
+          format: float
+          description: Congestion score 0–100
+        label:
+          type: string
+          enum: [light, moderate, heavy]
+          description: Human-readable congestion level
+
+    RouteAlternative:
+      type: object
+      required: [id, name, tag, estimated_minutes, congestion_level, segments, via]
+      properties:
+        id:
+          type: string
+        name:
+          type: string
+          description: Human-readable route name (e.g. "Fastest", "Balanced", "Scenic")
+        tag:
+          type: string
+          description: Short tag shown on the map button
+        via:
+          type: string
+          description: Key road or landmark this route passes through
+        estimated_minutes:
+          type: integer
+        congestion_level:
+          type: string
+          enum: [light, moderate, heavy]
+        confidence_score:
+          type: number
+          format: float
+        segments:
+          type: array
+          items:
+            $ref: "#/components/schemas/RouteSegment"
+
+    RouteSegment:
+      type: object
+      required:
+        - lat_start
+        - lng_start
+        - lat_end
+        - lng_end
+        - congestion_level
+      properties:
+        lat_start:
+          type: number
+          format: float
+        lng_start:
+          type: number
+          format: float
+        lat_end:
+          type: number
+          format: float
+        lng_end:
+          type: number
+          format: float
+        congestion_level:
+          type: string
+          enum: [light, moderate, heavy]
+
+    PredictionResult:
+      type: object
+      required:
+        - congestion_level
+        - estimated_minutes
+        - hourly_forecast
+        - confidence_score
+        - origin_coords
+        - destination_coords
+        - route_segments
+      properties:
+        congestion_level:
+          type: string
+          enum: [light, moderate, heavy]
+          description: Overall predicted congestion level
+        estimated_minutes:
+          type: integer
+          description: Estimated travel time in minutes
+        hourly_forecast:
+          type: array
+          items:
+            $ref: "#/components/schemas/HourlyForecast"
+          description: 24-hour hourly traffic forecast for the selected day
+        confidence_score:
+          type: number
+          format: float
+          description: Model confidence score (0–1)
+        origin_coords:
+          type: object
+          required: [lat, lng]
+          properties:
+            lat:
+              type: number
+              format: float
+            lng:
+              type: number
+              format: float
+        destination_coords:
+          type: object
+          required: [lat, lng]
+          properties:
+            lat:
+              type: number
+              format: float
+            lng:
+              type: number
+              format: float
+        route_segments:
+          type: array
+          items:
+            $ref: "#/components/schemas/RouteSegment"
+        route_alternatives:
+          type: array
+          description: All route options returned by the model
+          items:
+            $ref: "#/components/schemas/RouteAlternative"
+
+    DayPattern:
+      type: object
+      required:
+        - day
+        - hourly
+      properties:
+        day:
+          type: string
+          enum: [Monday, Tuesday, Wednesday, Thursday, Friday, Saturday, Sunday]
+        hourly:
+          type: array
+          items:
+            $ref: "#/components/schemas/HourlyForecast"
+
+    HistoricalData:
+      type: object
+      required:
+        - location
+        - patterns
+      properties:
+        location:
+          type: string
+        patterns:
+          type: array
+          items:
+            $ref: "#/components/schemas/DayPattern"
+
+    TrafficSummary:
+      type: object
+      required:
+        - active_incidents
+        - average_congestion_index
+        - predictions_today
+        - heavy_zones
+        - light_zones
+        - moderate_zones
+      properties:
+        active_incidents:
+          type: integer
+          description: Number of active traffic incidents
+        average_congestion_index:
+          type: number
+          format: float
+          description: Average congestion score (0–100) across all monitored roads
+        predictions_today:
+          type: integer
+          description: Total predictions served today
+        heavy_zones:
+          type: integer
+          description: Count of roads currently in heavy congestion
+        light_zones:
+          type: integer
+          description: Count of roads currently in light traffic
+        moderate_zones:
+          type: integer
+          description: Count of roads currently in moderate traffic

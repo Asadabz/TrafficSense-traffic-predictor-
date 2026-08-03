@@ -1,0 +1,13 @@
+<svg width="512" height="512" viewBox="0 0 512 512" xmlns="http://www.w3.org/2000/svg">
+  <defs>
+    <linearGradient id="ts-bar-grad" x1="0" y1="1" x2="0" y2="0">
+      <stop offset="0" stop-color="#0f766e"/>
+      <stop offset="1" stop-color="#2dd4bf"/>
+    </linearGradient>
+  </defs>
+  <rect x="0" y="0" width="512" height="512" rx="120" fill="#0b1f2a"/>
+  <rect x="150" y="300" width="52" height="120" rx="16" fill="url(#ts-bar-grad)"/>
+  <rect x="230" y="230" width="52" height="190" rx="16" fill="url(#ts-bar-grad)"/>
+  <rect x="310" y="140" width="52" height="280" rx="16" fill="url(#ts-bar-grad)"/>
+  <circle cx="336" cy="118" r="26" fill="#2dd4bf"/>
+</svg>
