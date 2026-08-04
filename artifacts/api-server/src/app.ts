@@ -33,7 +33,7 @@ app.use(express.urlencoded({ extended: true }));
 app.use("/api", router);
 
 // Serve the built React frontend (artifacts/trafficsense/dist)
-const frontendDist = path.join(__dirname, "../../trafficsense/dist");
+const frontendDist = path.join(__dirname, "../../trafficsense/dist/public");
 app.use(express.static(frontendDist));
 
 // Catch-all: any non-/api route serves the frontend's index.html
