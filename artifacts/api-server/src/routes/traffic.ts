@@ -10,10 +10,13 @@ type CongestionLevel = "light" | "moderate" | "heavy";
 // Usage policy requires a descriptive User-Agent — do not remove it.
 // ---------------------------------------------------------------------------
 async function geocodeLocation(location: string): Promise<{ lat: number; lng: number; label: string }> {
+  const controller = new AbortController();
+  const timeout = setTimeout(() => controller.abort(), 8000);
   const url = `https://nominatim.openstreetmap.org/search?format=json&limit=1&q=${encodeURIComponent(location)}`;
   const res = await fetch(url, {
     headers: { "User-Agent": "TrafficSense-Portfolio-Project/1.0 (student project)" },
-  });
+    signal: controller.signal,
+  }).finally(() => clearTimeout(timeout));
   if (!res.ok) throw new Error(`Geocoding request failed for "${location}"`);
   const data = (await res.json()) as Array<{ lat: string; lon: string; display_name: string }>;
   if (!data.length) throw new Error(`Could not find location: "${location}"`);
@@ -36,11 +39,13 @@ async function fetchRoutes(
   origin: { lat: number; lng: number },
   destination: { lat: number; lng: number }
 ): Promise<OsrmRoute[]> {
+  const controller = new AbortController();
+  const timeout = setTimeout(() => controller.abort(), 8000);
   const url =
     `https://router.project-osrm.org/route/v1/driving/` +
     `${origin.lng},${origin.lat};${destination.lng},${destination.lat}` +
     `?alternatives=true&overview=full&geometries=geojson&steps=true`;
-  const res = await fetch(url);
+  const res = await fetch(url, { signal: controller.signal }).finally(() => clearTimeout(timeout));
   if (!res.ok) throw new Error("Routing request failed");
   const data = (await res.json()) as { code: string; routes: OsrmRoute[] };
   if (data.code !== "Ok" || !data.routes?.length) throw new Error("No route found between these locations");
@@ -111,9 +116,7 @@ async function getMlPredictionRaw(
   hour: number,
   day_of_week: number
 ): Promise<{ congestion_ratio: number; zone: CongestionLevel }> {
-  const ML_SERVICE_URL = process.env.ML_SERVICE_URL || "http://localhost:8000";
-// ...
-const res = await fetch(`${ML_SERVICE_URL}/predict`, {
+  const res = await fetch("http://localhost:8000/predict", {
     method: "POST",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify({ city, road, hour, day_of_week }),
@@ -179,24 +182,47 @@ const ROUTE_META = [
 // Returns place suggestions for autocomplete (proxies Nominatim so the
 // frontend doesn't hit rate limits / CORS issues directly).
 // ---------------------------------------------------------------------------
+interface NominatimAddress {
+  road?: string; neighbourhood?: string; suburb?: string;
+  city?: string; town?: string; village?: string; state?: string;
+}
+interface NominatimResult {
+  display_name: string; lat: string; lon: string; address?: NominatimAddress;
+}
+
+/** Build a short, Google-Maps-style label from Nominatim's structured address */
+function shortLabel(d: NominatimResult): string {
+  const a = d.address ?? {};
+  const primary = a.road || a.neighbourhood || a.suburb || d.display_name.split(",")[0].trim();
+  const secondary = a.suburb || a.city || a.town || a.village || a.state;
+  if (secondary && secondary !== primary) return `${primary}, ${secondary}`;
+  return primary;
+}
+
 router.get("/geocode-search", async (req, res) => {
   const q = String(req.query.q ?? "").trim();
   if (q.length < 3) return res.json({ suggestions: [] });
 
   try {
-    const url = `https://nominatim.openstreetmap.org/search?format=json&limit=5&countrycodes=in&q=${encodeURIComponent(q)}`;
+    const controller = new AbortController();
+    const timeout = setTimeout(() => controller.abort(), 6000);
+    const url = `https://nominatim.openstreetmap.org/search?format=json&addressdetails=1&limit=5&countrycodes=in&q=${encodeURIComponent(q)}`;
     const r = await fetch(url, {
       headers: { "User-Agent": "TrafficSense-Portfolio-Project/1.0 (student project)" },
+      signal: controller.signal,
     });
-    const data = (await r.json()) as Array<{ display_name: string; lat: string; lon: string }>;
+    clearTimeout(timeout);
+    const data = (await r.json()) as NominatimResult[];
     return res.json({
       suggestions: data.map((d) => ({
-        label: d.display_name,
+        label: shortLabel(d),       // short — shown in the dropdown
+        value: d.display_name,      // full — used for actual geocoding on select
         lat: parseFloat(d.lat),
         lng: parseFloat(d.lon),
       })),
     });
-  } catch {
+  } catch (err) {
+    console.error("geocode-search failed:", err);
     return res.json({ suggestions: [] });
   }
 });
@@ -280,6 +306,9 @@ router.post("/predict", async (req, res) => {
       ml_model_used: usedMl,
     });
   } catch (err: any) {
+    // Logged so the real cause (geocoding timeout, OSRM failure, etc.)
+    // is visible in Render logs instead of just the generic frontend message.
+    console.error("PREDICT ROUTE FAILED:", err?.message ?? err);
     return res.status(422).json({ error: err?.message ?? "Could not compute a route for these locations." });
   }
 });

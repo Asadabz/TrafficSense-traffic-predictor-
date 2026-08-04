@@ -26,7 +26,8 @@ function nowDefaults() {
 }
 
 interface Suggestion {
-  label: string;
+  label: string;  // short, Google-Maps-style display text
+  value: string;  // full address — used for the actual geocoding/predict call
   lat: number;
   lng: number;
 }
@@ -47,25 +48,38 @@ function AutocompleteInput({
 }) {
   const [suggestions, setSuggestions] = useState<Suggestion[]>([]);
   const [open, setOpen] = useState(false);
+  const [loading, setLoading] = useState(false);
   const debounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const abortRef = useRef<AbortController | null>(null);
   const wrapperRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
     if (debounceRef.current) clearTimeout(debounceRef.current);
     if (value.trim().length < 3) {
       setSuggestions([]);
+      setLoading(false);
       return;
     }
     debounceRef.current = setTimeout(async () => {
+      // Cancel any in-flight request so slow/stale responses don't
+      // overwrite the dropdown with outdated results.
+      if (abortRef.current) abortRef.current.abort();
+      const controller = new AbortController();
+      abortRef.current = controller;
+      setLoading(true);
       try {
-        const res = await fetch(`/api/geocode-search?q=${encodeURIComponent(value)}`);
+        const res = await fetch(`/api/geocode-search?q=${encodeURIComponent(value)}`, {
+          signal: controller.signal,
+        });
         const data = await res.json();
         setSuggestions(data.suggestions ?? []);
         setOpen(true);
       } catch {
-        setSuggestions([]);
+        // ignore aborted/failed requests
+      } finally {
+        setLoading(false);
       }
-    }, 400);
+    }, 250);
     return () => {
       if (debounceRef.current) clearTimeout(debounceRef.current);
     };
@@ -93,14 +107,19 @@ function AutocompleteInput({
         data-testid={testId}
         autoComplete="off"
       />
-      {open && suggestions.length > 0 && (
+      {open && (suggestions.length > 0 || loading) && (
         <div className="absolute z-50 mt-1 w-full rounded-md border border-border/60 bg-popover shadow-lg max-h-56 overflow-y-auto">
+          {loading && suggestions.length === 0 && (
+            <div className="px-3 py-2 text-xs text-muted-foreground">Searching...</div>
+          )}
           {suggestions.map((s, i) => (
             <button
               key={i}
               type="button"
               onClick={() => {
-                onChange(s.label);
+                // Store the full address for accurate geocoding,
+                // but the user only sees the short label while typing.
+                onChange(s.value);
                 setOpen(false);
               }}
               className="w-full text-left px-3 py-2 text-xs hover:bg-muted/50 border-b border-border/30 last:border-b-0"

@@ -78,7 +78,12 @@ interface MapViewProps {
 function MapResizeHandler() {
   const map = useMap();
   useEffect(() => {
-    const t = setTimeout(() => map.invalidateSize(), 100);
+    // Run a few staggered invalidations — mobile browsers (esp. iOS Safari)
+    // often report a container size of 0 on the very first paint because
+    // the address-bar/viewport hasn't settled yet.
+    const timers = [50, 200, 500, 1000].map((ms) =>
+      setTimeout(() => map.invalidateSize(), ms)
+    );
 
     const container = map.getContainer();
     const resizeObserver = new ResizeObserver(() => {
@@ -88,11 +93,13 @@ function MapResizeHandler() {
 
     const onWinResize = () => map.invalidateSize();
     window.addEventListener('resize', onWinResize);
+    window.addEventListener('orientationchange', onWinResize);
 
     return () => {
-      clearTimeout(t);
+      timers.forEach(clearTimeout);
       resizeObserver.disconnect();
       window.removeEventListener('resize', onWinResize);
+      window.removeEventListener('orientationchange', onWinResize);
     };
   }, [map]);
   return null;
@@ -138,8 +145,23 @@ export default function MapView({ result, selectedRouteId, onRouteSelect }: MapV
   const getLabelColor = (level: string) => CONGESTION_COLOR[level] ?? '#3b82f6';
 
   return (
-    <div className="w-full h-full relative" data-testid="map-container">
-      <MapContainer center={[12.9716, 77.5946]} zoom={12} className="w-full h-full" zoomControl={false}>
+    // NOTE: on mobile, if a parent element in the layout doesn't have an
+    // explicit height, "h-full" resolves to 0 and Leaflet renders blank.
+    // The inline minHeight below (using dvh — dynamic viewport height,
+    // which accounts for mobile browser address bars) guarantees the map
+    // always has real pixels to render into, regardless of parent CSS.
+    <div
+      className="w-full h-full relative"
+      style={{ minHeight: '100dvh' }}
+      data-testid="map-container"
+    >
+      <MapContainer
+        center={[12.9716, 77.5946]}
+        zoom={12}
+        className="w-full h-full"
+        style={{ minHeight: '100dvh', width: '100%', height: '100%' }}
+        zoomControl={false}
+      >
         <TileLayer key={activeLayer} url={currentLayer.url} attribution={currentLayer.attr} maxZoom={19} />
         <ZoomControl position="bottomright" />
         <MapResizeHandler />
