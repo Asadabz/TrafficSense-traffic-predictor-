@@ -38,7 +38,7 @@ app.use(express.static(frontendDist));
 
 // Catch-all: any non-/api route serves the frontend's index.html
 // (needed for client-side routing, e.g. /historical)
-app.get("*", (req, res, next) => {
+app.get("/*splat", (req, res, next) => {
   if (req.path.startsWith("/api")) return next();
   res.sendFile(path.join(frontendDist, "index.html"));
 });
