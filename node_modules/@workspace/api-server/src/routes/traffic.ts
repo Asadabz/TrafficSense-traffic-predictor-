@@ -12,7 +12,7 @@ type CongestionLevel = "light" | "moderate" | "heavy";
 async function geocodeLocation(location: string): Promise<{ lat: number; lng: number; label: string }> {
   const controller = new AbortController();
   const timeout = setTimeout(() => controller.abort(), 8000);
-  const url = `https://nominatim.openstreetmap.org/search?format=json&limit=1&q=${encodeURIComponent(location)}`;
+  const url = `https://nominatim.openstreetmap.org/search?format=json&limit=1&countrycodes=in&q=${encodeURIComponent(location)}`;
   const res = await fetch(url, {
     headers: { "User-Agent": "TrafficSense-Portfolio-Project/1.0 (student project)" },
     signal: controller.signal,
