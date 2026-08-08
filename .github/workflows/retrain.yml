@@ -3,6 +3,9 @@ name: Weekly Retrain
 on:
   workflow_dispatch:
 
+permissions:
+  contents: write
+
 jobs:
   retrain:
     runs-on: ubuntu-latest
