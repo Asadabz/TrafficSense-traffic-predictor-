@@ -5,7 +5,7 @@ from sklearn.preprocessing import LabelEncoder
 from sklearn.metrics import mean_absolute_error, r2_score
 import joblib
 
-CSV_URL = "https://raw.githubusercontent.com/Asadabz/traffic-data-collector/refs/heads/main/realtime_traffic_data.csv?token=GHSAT0AAAAAAEBISAAGFURSYOXPOBAPJTJC2TQBD3A"
+CSV_URL = "https://raw.githubusercontent.com/Asadabz/traffic-data-collector/refs/heads/main/realtime_traffic_data.csv?token=GHSAT0AAAAAAEBISAAHR7ZT6MVLSXKG326U2TWW6TA"
 
 print("Loading data...")
 df = pd.read_csv(CSV_URL)
