@@ -23,6 +23,7 @@ jobs:
       - run: |
           git config user.name "github-actions"
           git config user.email "actions@github.com"
+          mv model.pkl road_encoder.pkl city_encoder.pkl artifacts/
           git add artifacts/model.pkl artifacts/road_encoder.pkl artifacts/city_encoder.pkl
           git commit -m "Auto-retrain: $(date +'%Y-%m-%d')" || echo "No changes to commit"
           git push
